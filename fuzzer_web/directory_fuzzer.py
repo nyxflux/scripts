@@ -8,7 +8,7 @@ from colorama import Fore, init
 
 target_url = input("What is the target URL ?:").rstrip("/")
 session = requests.Session()
-TIMEOUT =1 
+TIMEOUT = 2
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -30,27 +30,22 @@ progress_color = Fore.CYAN
 
 
 def get_wordlist():
-    wordlist = []
     with open("wordlist.txt", "r", encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            line = line.strip()  
-            if line:
-                wordlist.append(line)
-    return wordlist
-
+        return [line.strip() for line in f if line.strip()]
 
 
 def detect_wildcard(target_url):
-    random_path = str(uuid.uuid4())
-    url = f"{target_url}/{random_path}"
-
-    response = session.get(url, timeout = TIMEOUT)
-    wildcard_signature = (response.status_code, len(response.content))
-    return wildcard_signature
+    try:
+        random_path = str(uuid.uuid4())
+        response = session.get(f"{target_url}/{random_path}", timeout=TIMEOUT)
+        return (response.status_code, len(response.content))
+    except requests.RequestException as e:
+        print(f"{error_color}Erreur lors de la détection wildcard: {e}")
+        return None
 wildcard = detect_wildcard(target_url)
 
 
-def fuzz_directory(target_url, wildcard, directory):
+def fuzz_directory(target_url, wildcard, results_file, directory):
     url = f"{target_url}/{directory}" 
     global tested, found, errors
 
@@ -106,10 +101,10 @@ def fuzz_directory(target_url, wildcard, directory):
 wordlist = get_wordlist()
 TOTAL = len(wordlist)
 BAR_LENGTH = 30
-worker = partial(fuzz_directory, target_url, wildcard)
 debut = datetime.now()
 
 with open("results.txt", "w", encoding="utf-8") as results_file:
+    worker = partial(fuzz_directory, target_url, wildcard, results_file)
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         executor.map(worker, wordlist)
 fin = datetime.now()    
